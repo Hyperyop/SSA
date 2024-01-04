@@ -1,6 +1,7 @@
 # This file will contain the multivariate SSA algorithm 
 from typing import Literal
 import numpy as np
+from scipy.linalg import hankel
 
 class SSA:
     def __init__(self, L: int | str = "auto", r : int | float | str = "auto", type : Literal("HSSA", "VSSA") = "HSSA"):
@@ -92,7 +93,8 @@ class SSA:
                     temp[i, j+k] += X[i][j, k]
         for j in range(temp.shape[1]):
             temp[:,j] /= min(j+1, temp.shape[1]-j)
-        return temp
+        temp = [hankel(temp[i, :self.L], temp[i, self.L-1:]) for i in range(self.M)]
+        return np.hstack(temp) if self.type == "HSSA" else np.vstack(temp)
 
 
             
