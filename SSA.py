@@ -3,7 +3,7 @@ from typing import Literal
 import numpy as np
 
 class SSA:
-    def __init__(self, L: int | str = "auto", r : int | str = "auto", type : Literal("HSSA", "VSSA") = "HSSA"):
+    def __init__(self, L: int | str = "auto", r : int | float | str = "auto", type : Literal("HSSA", "VSSA") = "HSSA"):
         self.L = L
         self.r = r
         assert type in ["HSSA", "VSSA"], "type must be either HSSA or VSSA"
@@ -21,10 +21,7 @@ class SSA:
 
             Returns
             -------
-            U: np.ndarray
-                The eigenvectors after the SSA decomposition shape (n_features, r).
-            weights: np.ndarray
-                The eigenvalues after the SSA decomposition.
+            None
 
             Notes
             -----
@@ -41,6 +38,7 @@ class SSA:
         assert data.shape[1] > data.shape[0], "data must have more samples than features"
         N = data.shape[1]
         M = data.shape[0]
+        self.M = M
         if self.L == "auto":
             # do some transformation to get the L value
             if self.type == "HSSA":
@@ -54,27 +52,24 @@ class SSA:
             # we first horizontally stack the data
             # then we do the trajectory matrix
             X = np.hstack(X)
-            lag_cov = X @ X.T
-            eigvals, eigvecs = np.linalg.eigh(lag_cov)
-            eigvals = eigvals[::-1]
-            eigvecs = eigvecs[:, ::-1]
-            eigvecs = np.real(eigvecs)
-            if type(self.r) == float:
-                cumsum = np.cumsum(eigvals)
-                self.r = np.argmax(cumsum >= self.r) + 1
-            elif self.r == "auto":
-                self.r = np.max(ranks)
-            eigvals, eigvecs = eigvals[:self.r], eigvecs[:, :self.r]
-            # reconstructing the data
-            X_hat = eigvecs @ eigvecs.T @ X
-
-
         else: 
             # we first vertically stack the data
             # then we do the trajectory matrix
             X = np.vstack(X)
+        lag_cov = X @ X.T
+        eigvals, eigvecs = np.linalg.eigh(lag_cov)
+        eigvals = eigvals[::-1]
+        eigvecs = eigvecs[:, ::-1]
+        eigvecs = np.real(eigvecs)
+        if type(self.r) == float:
+            cumsum = np.cumsum(eigvals)
+            self.r = np.argmax(cumsum >= self.r) + 1
+        elif self.r == "auto":
+            self.r = np.max(ranks)
+        eigvals, eigvecs = eigvals[:self.r], eigvecs[:, :self.r]
+        self.weights = eigvals
+        self.U = eigvecs
         
-        return self.U, self.weights
     def get_trajectory(self, data, L):
         # assuming data is of shape (n_samples,)
         assert len(data.shape) == 1, "data must be 1D"
@@ -86,7 +81,21 @@ class SSA:
             X[i] = data[i:i+L]
         return X.T
     def hankelization(self, X):
-        pass
+        if self.type == "HSSA":
+            X = np.hsplit(X, self.M)
+        else:
+            X = np.vsplit(X, self.M)
+        temp = np.zeros((self.M, X[0].shape[0] + X[0].shape[1] - 1))
+        for i in range(len(X)):
+            for j in range(X[i].shape[0]):
+                for k in range(X[i].shape[1]):
+                    temp[i, j+k] += X[i][j, k]
+        for j in range(temp.shape[1]):
+            temp[:,j] /= min(j+1, temp.shape[1]-j)
+        return temp
+
+
+            
     def predict(point):
         pass
     def score(data):
