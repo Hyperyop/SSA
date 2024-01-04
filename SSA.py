@@ -117,7 +117,13 @@ class SSA:
             # we first vertically stack the data
             # then we do the trajectory matrix
             X = np.vstack(X)
-        return self.hankelization(self.U @ self.U.T @ X)
+        temp = self.hankelization(self.U @ self.U.T @ X)
+        if self.type == "HSSA":
+            temp = np.hsplit(temp, self.M)
+        else:
+            temp = np.vsplit(temp, self.M)
+        return np.array([np.concatenate([temp[i][0,:-1], temp[i][:, -1]]) for i in range(len(temp))])
+        
     def fit_transform(self, data):
         """
             Fit the SSA model to the given data and then transform it.
