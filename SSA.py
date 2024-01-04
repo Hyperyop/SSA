@@ -4,7 +4,7 @@ import numpy as np
 from scipy.linalg import hankel
 
 class SSA:
-    def __init__(self, L: int | str = "auto", r : int | float | str = "auto", type : Literal("HSSA", "VSSA") = "HSSA"):
+    def __init__(self, L: int | str = "auto", r : int | float | str = "auto", type = "HSSA"):
         self.L = L
         self.r = r
         assert type in ["HSSA", "VSSA"], "type must be either HSSA or VSSA"
@@ -96,19 +96,7 @@ class SSA:
             AssertionError
                 If the input data is not a 2D array or if the number of samples is less than the number of features.
         """
-        # assuming data is of shape (n_features, n_samples)
-        assert len(data.shape) == 2, "data must be 2D"
-        assert data.shape[1] > data.shape[0], "data must have more samples than features"
-        N = data.shape[1]
-        M = data.shape[0]
-        if self.L == "auto":
-            # do some transformation to get the L value
-            if self.type == "HSSA":
-                self.L = int(M * (N+1)/(M+1))
-            else:
-                self.L = int((N+1)/(M+1))
-        # constructing the trajectory matrix for each dimension
-        X = [self.get_trajectory(data[i], self.L) for i in range(M)]
+        X = [self.get_trajectory(data[i], self.L) for i in range(len(data))]
         if self.type == "HSSA":
             # we first horizontally stack the data
             # then we do the trajectory matrix
