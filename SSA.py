@@ -1,4 +1,4 @@
-# This file will contain the multivariate SSA algorithm 
+# This file will contain the multivariate SSA algorithm
 from typing import Literal
 import numpy as np
 from scipy.linalg import hankel
@@ -33,11 +33,12 @@ class SSA:
             AssertionError
                 If the input data is not a 2D array or if the number of samples is less than the number of features.
         """
-        
+
         # assuming data is of shape (n_features, n_samples)
         assert len(data.shape) == 2, "data must be 2D"
         assert data.shape[1] > data.shape[0], "data must have more samples than features"
         N = data.shape[1]
+        self.N = N
         M = data.shape[0]
         self.M = M
         if self.L == "auto":
@@ -53,7 +54,7 @@ class SSA:
             # we first horizontally stack the data
             # then we do the trajectory matrix
             X = np.hstack(X)
-        else: 
+        else:
             # we first vertically stack the data
             # then we do the trajectory matrix
             X = np.vstack(X)
@@ -70,7 +71,9 @@ class SSA:
         eigvals, eigvecs = eigvals[:self.r], eigvecs[:, :self.r]
         self.weights = eigvals
         self.U = eigvecs
-    
+        self.X_hat = self.U @ self.U.T @ X
+        self.X_tilda = self.hankelization(self.X_hat)
+
     def transform(self, data):
         """
             Transform the given data using the SSA model.
@@ -101,7 +104,7 @@ class SSA:
             # we first horizontally stack the data
             # then we do the trajectory matrix
             X = np.hstack(X)
-        else: 
+        else:
             # we first vertically stack the data
             # then we do the trajectory matrix
             X = np.vstack(X)
@@ -111,7 +114,7 @@ class SSA:
         else:
             temp = np.vsplit(temp, self.M)
         return np.array([np.concatenate([temp[i][0,:-1], temp[i][:, -1]]) for i in range(len(temp))])
-        
+
     def fit_transform(self, data):
         """
             Fit the SSA model to the given data and then transform it.
@@ -163,10 +166,35 @@ class SSA:
             temp[:,j] /= min(j+1, temp.shape[1]-j)
         temp = [hankel(temp[i, :self.L], temp[i, self.L-1:]) for i in range(self.M)]
         return np.hstack(temp) if self.type == "HSSA" else np.vstack(temp)
+    def predict(self, h=1, method="recurrent"):
+        assert h > 0, "Parameter h must be greater than 0"
+        if method == "recurrent":
+            if self.type == "VSSA":
+                indices = list(range(self.L-1, self.U.shape[0], self.L))
+                W = self.U[indices, :]
+                U_M = np.delete(self.U, indices, axis=0)
+                temp = self.X_hat[:, -1]
+                indices2 = list(range(0, temp.shape[0], self.L))
+                Z = np.delete(temp, indices2)
+                y = np.linalg.pinv(np.eye(self.M) - W @ W.T) @ W @ U_M.T @ Z
 
+            elif self.type == "HSSA":
+                U_H = self.U[self.L-1, :]
+                pi_H = self.U[-1, :]
+                v_squared = np.dot(pi_H, pi_H)
+                R = (1/(1 - v_squared)) * U_H @ pi_H
+                if  v_squared < 1:
+                    temp = self.X_hat[-1, :]
+                    indices = list(range(0, temp.shape[0], self.L))
+                    Z = np.delete(temp, indices)
+                    y = R.T @ Z
 
-            
-    def predict(point):
+        elif method == "vector":
+            if self.type == "VSSA":
+                pass
+            elif self.type == "HSSA":
+                pass
         pass
+
     def score(data):
         pass
