@@ -191,10 +191,19 @@ class SSA:
 
         elif method == "vector":
             if self.type == "VSSA":
-                pass
+                indices = list(range(self.L-1, self.U.shape[0], self.L))
+                W = self.U[indices, :]
+                U_M = np.delete(self.U, indices, axis=0)
+                R = U_M @ W.T @ np.linalg.pinv((np.eye(self.M) - W @ W.T))
+                pi = U_M @ U_M.T + R @ (np.eye(self.M) - W @ W.T) @ R.T
+                Z = ...
             elif self.type == "HSSA":
-                pass
-        pass
+                U_H = self.U[self.L-1, :]
+                pi_H = self.U[-1, :]
+                v_squared = np.dot(pi_H, pi_H)
+                R = (1/(1 - v_squared)) * U_H @ pi_H
+                pi = U_H @ U_H.T  + (1 - v_squared) * R @ R.T
+                Z = ...
 
     def score(data):
         pass
