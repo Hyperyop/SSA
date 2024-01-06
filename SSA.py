@@ -208,7 +208,7 @@ class SSA:
                     result[i] = inverse @ W @ U_M.T @ Z
                     Z[mask_prev] = Z[mask_next]
                     Z[~mask_prev] = result[i]
-                return result
+                return result.T
 
             elif self.type == "HSSA":
                 U_H = self.U[:self.L-1]
@@ -226,7 +226,7 @@ class SSA:
                         Z[:-1] = Z[1:]
                         Z[-1] = result[i]
 
-                    return result
+                    return result.T
                         
 
         elif method == "vector":
@@ -237,18 +237,13 @@ class SSA:
                 R = U_M @ W.T @ np.linalg.pinv((np.eye(self.M) - W @ W.T))
                 PI = U_M @ U_M.T + R @ (np.eye(self.M) - W @ W.T) @ R.T
                 PI = np.vsplit(PI, self.M)
-                print(f"PI: {len(PI)}")
-                print(f"R: {len(R)}")
-                Y_delta = self.X_tilda[:, -1]
-                Y_delta = np.delete(Y_delta, list(range(self.L-1, Y_delta.shape[0], self.L)), axis=0)
                 temp = []
                 for i in range(self.M):
                     temp.append(PI[i])
                     temp.append(R[:,i].T)
                 projector = np.vstack(temp)
-                del temp
                 result = np.empty((h, self.M))
-                Z_i = self.X_tilda[:, min(-self.L + h, -1):]
+                Z_i = self.X_tilda[:, -self.L:]
                 indices = list(range(self.L-1, Z_i.shape[0], self.L))
                 mask = np.ones_like(Z_i[:, -1], np.bool_)
                 mask[indices] = False
@@ -267,7 +262,6 @@ class SSA:
                 R = (1/(1 - v_squared)) * U_H @ pi_H
                 PI = U_H @ U_H.T  + (1 - v_squared) * R @ R.T
                 last_columns = list(range(self.X_tilda.shape[1]//self.M - 1, self.X_tilda.shape[1], self.X_tilda.shape[1]//self.M))
-                Y_delta = self.X_tilda[1:, last_columns]
                 projector = np.vstack((PI, R.T))
                 result = np.empty((h, self.M))
                 for i in range(self.M):
@@ -277,8 +271,7 @@ class SSA:
                         Z_i = np.hstack((Z_i, temp[:, None]))
                     Z_i = self.hankelization(Z_i, test=False)
                     result[:, i] = Z_i[-1, -h:]
-                return result
-
+                return result.T
                 
 
     def score(data):
