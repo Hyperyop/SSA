@@ -71,8 +71,7 @@ class SSA:
         eigvals, eigvecs = eigvals[:self.r], eigvecs[:, :self.r]
         self.weights = eigvals
         self.U = eigvecs
-        self.X_hat = self.U @ self.U.T @ X
-        self.X_tilda = self.hankelization(self.X_hat)
+        self.X_tilda = self.hankelization(self.U @ self.U.T @ X)
 
     def transform(self, data):
         """
@@ -166,28 +165,60 @@ class SSA:
             temp[:,j] /= min(j+1, temp.shape[1]-j)
         temp = [hankel(temp[i, :self.L], temp[i, self.L-1:]) for i in range(self.M)]
         return np.hstack(temp) if self.type == "HSSA" else np.vstack(temp)
-    def predict(self, h=1, method="recurrent"):
+    def predict(self, h=1, method="recurrent", starting_point = None):
+        """
+        Predicts future values using the SSA model.
+
+        Parameters:
+            h (int): Number of future values to predict (default is 1).
+            method (str): Method for prediction, either "recurrent" or "vector" (default is "recurrent").
+
+        Returns:
+            numpy.ndarray: Array of predicted values.
+
+        Raises:
+            AssertionError: If h is not greater than 0.
+
+        """
         assert h > 0, "Parameter h must be greater than 0"
         if method == "recurrent":
             if self.type == "VSSA":
                 indices = list(range(self.L-1, self.U.shape[0], self.L))
                 W = self.U[indices, :]
                 U_M = np.delete(self.U, indices, axis=0)
-                temp = self.X_hat[:, -1]
+                temp = self.X_tilda[:, -1]
                 indices2 = list(range(0, temp.shape[0], self.L))
+                inverse = np.linalg.pinv(np.eye(self.M) - W @ W.T)
+                result = np.zeros((h, self.M))
                 Z = np.delete(temp, indices2)
-                y = np.linalg.pinv(np.eye(self.M) - W @ W.T) @ W @ U_M.T @ Z
+                mask_prev = np.ones_like(Z, np.bool_)
+                mask_prev[self.L-2::self.L-1] = False
+                mask_next = np.ones_like(Z, np.bool_)
+                mask_next[::self.L-1] = False
+                for i in range(h):
+                    result[i] = inverse @ W @ U_M.T @ Z
+                    Z[mask_prev] = Z[mask_next]
+                    Z[~mask_prev] = result[i]
+                return result
 
             elif self.type == "HSSA":
-                U_H = self.U[self.L-1, :]
-                pi_H = self.U[-1, :]
+                U_H = self.U[:self.L-1]
+                pi_H = self.U[-1]
                 v_squared = np.dot(pi_H, pi_H)
-                R = (1/(1 - v_squared)) * U_H @ pi_H
+                R = (1/(1 - v_squared)) * (U_H @ pi_H)
                 if  v_squared < 1:
-                    temp = self.X_hat[-1, :]
-                    indices = list(range(0, temp.shape[0], self.L))
-                    Z = np.delete(temp, indices)
-                    y = R.T @ Z
+                    last_columns = list(range(self.X_tilda.shape[1]//self.M - 1, self.X_tilda.shape[1], self.X_tilda.shape[1]//self.M))
+                    temp = self.X_tilda[:,last_columns]
+                    Z = temp[1:]
+                    result = np.zeros((h, self.M))
+                    for i in range(h):
+                        y = R.T @ Z
+                        result[i] = y
+                        Z[:-1] = Z[1:]
+                        Z[-1] = result[i]
+
+                    return result
+                        
 
         elif method == "vector":
             if self.type == "VSSA":
@@ -196,14 +227,14 @@ class SSA:
                 U_M = np.delete(self.U, indices, axis=0)
                 R = U_M @ W.T @ np.linalg.pinv((np.eye(self.M) - W @ W.T))
                 pi = U_M @ U_M.T + R @ (np.eye(self.M) - W @ W.T) @ R.T
-                Z = ...
+                pass
             elif self.type == "HSSA":
                 U_H = self.U[self.L-1, :]
                 pi_H = self.U[-1, :]
                 v_squared = np.dot(pi_H, pi_H)
                 R = (1/(1 - v_squared)) * U_H @ pi_H
                 pi = U_H @ U_H.T  + (1 - v_squared) * R @ R.T
-                Z = ...
+                pass
 
     def score(data):
         pass
