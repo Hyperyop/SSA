@@ -59,15 +59,16 @@ class SSA:
             # then we do the trajectory matrix
             X = np.vstack(X)
         lag_cov = X @ X.T
-        eigvals, eigvecs = np.linalg.eigh(lag_cov)
+        eigvals, eigvecs = np.linalg.eigh(lag_cov, "U")
         eigvals = eigvals[::-1]
         eigvecs = eigvecs[:, ::-1]
         eigvecs = np.real(eigvecs)
         if type(self.r) == float:
-            cumsum = np.cumsum(eigvals)
+            cumsum = np.cumsum(eigvals) / np.sum(eigvals)
+            print(cumsum> self.r)
             self.r = np.argmax(cumsum >= self.r) + 1
         elif self.r == "auto":
-            self.r = np.max(ranks)
+            self.r = np.max(ranks) -1
         eigvals, eigvecs = eigvals[:self.r], eigvecs[:, :self.r]
         self.weights = eigvals
         self.U = eigvecs
@@ -247,11 +248,11 @@ class SSA:
                 indices = list(range(self.L-1, Z_i.shape[0], self.L))
                 mask = np.ones_like(Z_i[:, -1], np.bool_)
                 mask[indices] = False
-                for i in range(h):
+                for i in range(h + self.L):
                     temp = projector @ Z_i[:,-1][mask]
                     Z_i = np.concatenate((Z_i, temp[:, None]), axis = -1)
                 Z_i = self.hankelization(Z_i)
-                result = Z_i[np.array(list(range(self.L-1, Z_i.shape[0], self.L))), -h:]
+                result = Z_i[np.array(list(range(self.L-1, Z_i.shape[0], self.L))), -h - self.L: -self.L]
                 return result
             
 
@@ -265,12 +266,12 @@ class SSA:
                 projector = np.vstack((PI, R.T))
                 result = np.empty((h, self.M))
                 for i in range(self.M):
-                    Z_i = self.X_tilda[:, (0 if i == 0 else last_columns[i-1]):last_columns[i]]
-                    for j in range(h):
+                    Z_i = self.X_tilda[:, (0 if i == 0 else last_columns[i-1]+1):last_columns[i]+1]
+                    for j in range(h + self.L):
                         temp = projector @ Z_i[1:, -1]
                         Z_i = np.hstack((Z_i, temp[:, None]))
                     Z_i = self.hankelization(Z_i, test=False)
-                    result[:, i] = Z_i[-1, -h:]
+                    result[:, i] = Z_i[-1, -h - self.L: -self.L]
                 return result.T
                 
 
